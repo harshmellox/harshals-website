@@ -251,6 +251,8 @@ ul {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  will-change: backdrop-filter, transform;
+  transform: translateZ(0);
 }
 
 .header__inner {
@@ -382,10 +384,12 @@ ul {
   min-height: 100vh;
   /* Soft blended background like the reference site */
   background: radial-gradient(circle at 80% 10%, rgba(201, 211, 215, 1) 0%, rgba(220, 228, 231, 1) 50%, rgba(206, 215, 219, 1) 100%);
-  overflow: clip;
+  overflow: hidden;
   display: flex;
   align-items: center;
   padding-top: var(--header-height);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .hero__grid {
@@ -442,6 +446,9 @@ ul {
   opacity: 0;
   transform: translateY(16px);
   transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .hero__check.is-visible {
@@ -537,6 +544,8 @@ ul {
   color: var(--color-white);
   line-height: 0.85;
   letter-spacing: -0.05em;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .hero__photo-area {
@@ -551,6 +560,7 @@ ul {
   border-radius: 20px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.05));
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -560,6 +570,8 @@ ul {
   font-size: 14px;
   font-weight: 500;
   border: 1px solid rgba(255, 255, 255, 0.2);
+  will-change: backdrop-filter;
+  transform: translateZ(0);
 }
 
 .hero__photo-placeholder svg {
@@ -1372,6 +1384,7 @@ ul {
   display: flex;
   flex-direction: column;
   transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .process__counter-digits span {
@@ -1411,6 +1424,7 @@ ul {
   transform-origin: top;
   transform: scaleY(0);
   transition: transform 0.1s linear;
+  will-change: transform;
 }
 
 /* Dots/markers on the line */
@@ -1930,7 +1944,10 @@ ul {
   border: 1px solid var(--color-border-light);
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
+  will-change: transform, background-color;
+  transform: translateZ(0);
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -1999,14 +2016,14 @@ ul {
   }
 }
 
-/* ==========================================
-   SCROLL REVEAL
-   ========================================== */
 .reveal {
   opacity: 0;
   transform: translateY(32px);
   transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .reveal.is-visible {

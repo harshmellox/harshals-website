@@ -29,13 +29,18 @@ requestAnimationFrame(raf);
 // ==========================================
 const header = document.getElementById('header');
 
-lenis.on('scroll', ({ scroll }) => {
-  if (scroll > 80) {
-    header.classList.add('header--scrolled');
-  } else {
-    header.classList.remove('header--scrolled');
-  }
-});
+if (header) {
+  let headerScrolled = false;
+  lenis.on('scroll', ({ scroll }) => {
+    const shouldScroll = scroll > 80;
+    if (shouldScroll !== headerScrolled) {
+      headerScrolled = shouldScroll;
+      requestAnimationFrame(() => {
+        header.classList.toggle('header--scrolled', headerScrolled);
+      });
+    }
+  });
+}
 
 // ==========================================
 // 3. MOBILE MENU
@@ -213,24 +218,28 @@ function initMilestone() {
 
   if (!processSection || !milestoneCol || !milestoneLine || !milestoneProgress || steps.length === 0) return;
 
-  // Store marker positions (px from top of milestone-col)
+  // Store positions relative to the page/milestone-col
+  let stepOffsets = [];
   let markerPositions = [];
 
   function layoutMilestone() {
     const colRect = milestoneCol.getBoundingClientRect();
-    const colTop = milestoneCol.offsetTop;
+    const scrollY = window.scrollY || window.pageYOffset;
     markerPositions = [];
+    stepOffsets = [];
 
-    // Position each marker at the vertical start of its corresponding step
+    // Position each marker and cache step offsets
     steps.forEach((step, i) => {
       if (!markers[i]) return;
-      // step.offsetTop is relative to .process__right, which shares grid row with milestone-col
       const markerTop = step.offsetTop + step.offsetHeight * 0.15;
       markers[i].style.top = `${markerTop}px`;
       markerPositions.push(markerTop);
+
+      // Cache step top relative to the document
+      const rect = step.getBoundingClientRect();
+      stepOffsets.push(rect.top + scrollY);
     });
 
-    // Position the grey line from first marker to last marker (+ some extra)
     if (markerPositions.length >= 2) {
       const lineTop = markerPositions[0];
       const lineBottom = markerPositions[markerPositions.length - 1];
@@ -243,66 +252,62 @@ function initMilestone() {
   layoutMilestone();
   window.addEventListener('resize', layoutMilestone);
 
-  // Scroll handler — use native scroll for reliability
-  function updateMilestone() {
+  // Scroll handler — Optimized for Safari performance
+  function updateMilestone(scrollData) {
+    // scrollData might be from Lenis or native
+    const scrollY = scrollData.scroll !== undefined ? scrollData.scroll : (window.scrollY || window.pageYOffset);
     const windowHeight = window.innerHeight;
-    const triggerPoint = windowHeight * 0.4;
+    const triggerPoint = scrollY + (windowHeight * 0.4);
 
-    // Determine active step
     let activeIndex = 0;
-    steps.forEach((step, i) => {
-      const stepRect = step.getBoundingClientRect();
-      if (stepRect.top < triggerPoint) {
+    stepOffsets.forEach((offset, i) => {
+      if (offset < triggerPoint) {
         activeIndex = i;
       }
     });
 
-    // Activate/deactivate steps
-    steps.forEach((step, i) => {
-      step.classList.toggle('is-active', i === activeIndex);
-    });
+    requestAnimationFrame(() => {
+      // Activate/deactivate steps
+      steps.forEach((step, i) => {
+        step.classList.toggle('is-active', i === activeIndex);
+      });
 
-    // Update digit roller
-    if (counterDigits) {
-      counterDigits.style.transform = `translateY(${activeIndex * -100 / steps.length}%)`;
-    }
+      // Update digit roller
+      if (counterDigits) {
+        counterDigits.style.transform = `translateY(${activeIndex * -100 / steps.length}%)`;
+      }
 
-    // Calculate fill progress based on marker positions
-    if (markerPositions.length >= 2) {
-      const lineTop = markerPositions[0];
-      const lineHeight = markerPositions[markerPositions.length - 1] - lineTop;
+      // Calculate fill progress
+      if (markerPositions.length >= 2) {
+        const lineTop = markerPositions[0];
+        const lineHeight = markerPositions[markerPositions.length - 1] - lineTop;
+        const activeMarkerRel = markerPositions[activeIndex] - lineTop;
+        const nextMarkerRel = markerPositions[activeIndex + 1]
+          ? markerPositions[activeIndex + 1] - lineTop
+          : lineHeight;
 
-      // Current active marker position relative to line start
-      const activeMarkerRel = markerPositions[activeIndex] - lineTop;
-      // Next marker position (or end of line)
-      const nextMarkerRel = markerPositions[activeIndex + 1]
-        ? markerPositions[activeIndex + 1] - lineTop
-        : lineHeight;
+        const currentStepTop = stepOffsets[activeIndex];
+        const currentStepHeight = steps[activeIndex].offsetHeight;
+        const stepProgress = Math.max(0, Math.min(1,
+          (triggerPoint - currentStepTop) / currentStepHeight
+        ));
 
-      // How far through current step
-      const activeStepRect = steps[activeIndex].getBoundingClientRect();
-      const stepHeight = steps[activeIndex].offsetHeight;
-      const stepProgress = Math.max(0, Math.min(1,
-        (triggerPoint - activeStepRect.top) / stepHeight
-      ));
+        const fillPx = activeMarkerRel + (nextMarkerRel - activeMarkerRel) * stepProgress;
+        const fillScale = Math.max(0, Math.min(1, fillPx / lineHeight));
+        milestoneProgress.style.transform = `scaleY(${fillScale})`;
+      }
 
-      // Interpolate between current marker and next marker
-      const fillPx = activeMarkerRel + (nextMarkerRel - activeMarkerRel) * stepProgress;
-      const fillScale = Math.max(0, Math.min(1, fillPx / lineHeight));
-      milestoneProgress.style.transform = `scaleY(${fillScale})`;
-    }
-
-    // Activate markers up to and including the active step
-    markers.forEach((marker, i) => {
-      marker.classList.toggle('is-active', i <= activeIndex);
+      // Activate markers
+      markers.forEach((marker, i) => {
+        marker.classList.toggle('is-active', i <= activeIndex);
+      });
     });
   }
 
-  // Listen on both native scroll and Lenis for reliability
-  window.addEventListener('scroll', updateMilestone, { passive: true });
+  // Use only Lenis for the milestone update if possible
   lenis.on('scroll', updateMilestone);
-  // Initial call
-  updateMilestone();
+  // Initial call (native layout may be needed)
+  updateMilestone({ scroll: window.scrollY });
 }
 
 initMilestone();
@@ -368,7 +373,9 @@ const bigText = document.querySelector('.hero__big-text span');
 if (bigText) {
   lenis.on('scroll', ({ scroll }) => {
     if (scroll < window.innerHeight) {
-      bigText.style.transform = `translateY(${scroll * 0.12}px)`;
+      requestAnimationFrame(() => {
+        bigText.style.transform = `translateY(${scroll * 0.12}px) translateZ(0)`;
+      });
     }
   });
 }
