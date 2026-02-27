@@ -200,51 +200,109 @@ sections.forEach(s => sectionObserver.observe(s));
 
 // ==========================================
 // 9. PROCESS MILESTONE PROGRESS LINE
+//    (Dixie-style: dynamic line + markers)
 // ==========================================
 function initMilestone() {
-  const milestone = document.getElementById('processMilestone');
-  const fill = document.getElementById('milestoneFill');
-  const dots = milestone ? milestone.querySelectorAll('.process__milestone-dot') : [];
   const processSection = document.getElementById('process');
+  const milestoneCol = document.getElementById('processMilestone');
+  const milestoneLine = document.getElementById('milestoneLine');
+  const milestoneProgress = document.getElementById('milestoneProgress');
+  const counterDigits = document.getElementById('counterDigits');
+  const markers = milestoneCol ? milestoneCol.querySelectorAll('.milestone-marker') : [];
   const steps = document.querySelectorAll('.process__step');
 
-  if (!milestone || !fill || !processSection) return;
+  if (!processSection || !milestoneCol || !milestoneLine || !milestoneProgress || steps.length === 0) return;
 
-  // Set fill height to match milestone
-  fill.style.height = '100%';
+  // Store marker positions (px from top of milestone-col)
+  let markerPositions = [];
 
-  lenis.on('scroll', () => {
-    const rect = processSection.getBoundingClientRect();
-    const sectionHeight = processSection.offsetHeight;
-    const windowHeight = window.innerHeight;
+  function layoutMilestone() {
+    const colRect = milestoneCol.getBoundingClientRect();
+    const colTop = milestoneCol.offsetTop;
+    markerPositions = [];
 
-    // Calculate scroll progress through the process section
-    const scrollStart = rect.top - windowHeight;
-    const scrollEnd = rect.bottom;
-    const totalScroll = scrollEnd - scrollStart;
-    const currentScroll = -scrollStart;
-    const progress = Math.max(0, Math.min(1, currentScroll / totalScroll));
-
-    fill.style.transform = `scaleY(${progress})`;
-
-    // Activate dots based on progress
-    dots.forEach((dot, i) => {
-      const dotThreshold = (i + 1) / (dots.length + 1);
-      if (progress > dotThreshold) {
-        dot.classList.add('is-active');
-      } else {
-        dot.classList.remove('is-active');
-      }
-    });
-
-    // Activate process steps
+    // Position each marker at the vertical start of its corresponding step
     steps.forEach((step, i) => {
-      const stepThreshold = (i + 0.5) / steps.length;
-      if (progress > stepThreshold * 0.8) {
-        step.classList.add('is-active');
+      if (!markers[i]) return;
+      // step.offsetTop is relative to .process__right, which shares grid row with milestone-col
+      const markerTop = step.offsetTop + step.offsetHeight * 0.15;
+      markers[i].style.top = `${markerTop}px`;
+      markerPositions.push(markerTop);
+    });
+
+    // Position the grey line from first marker to last marker (+ some extra)
+    if (markerPositions.length >= 2) {
+      const lineTop = markerPositions[0];
+      const lineBottom = markerPositions[markerPositions.length - 1];
+      const lineHeight = lineBottom - lineTop;
+      milestoneLine.style.top = `${lineTop}px`;
+      milestoneLine.style.height = `${lineHeight}px`;
+    }
+  }
+
+  layoutMilestone();
+  window.addEventListener('resize', layoutMilestone);
+
+  // Scroll handler — use native scroll for reliability
+  function updateMilestone() {
+    const windowHeight = window.innerHeight;
+    const triggerPoint = windowHeight * 0.4;
+
+    // Determine active step
+    let activeIndex = 0;
+    steps.forEach((step, i) => {
+      const stepRect = step.getBoundingClientRect();
+      if (stepRect.top < triggerPoint) {
+        activeIndex = i;
       }
     });
-  });
+
+    // Activate/deactivate steps
+    steps.forEach((step, i) => {
+      step.classList.toggle('is-active', i === activeIndex);
+    });
+
+    // Update digit roller
+    if (counterDigits) {
+      counterDigits.style.transform = `translateY(${activeIndex * -100 / steps.length}%)`;
+    }
+
+    // Calculate fill progress based on marker positions
+    if (markerPositions.length >= 2) {
+      const lineTop = markerPositions[0];
+      const lineHeight = markerPositions[markerPositions.length - 1] - lineTop;
+
+      // Current active marker position relative to line start
+      const activeMarkerRel = markerPositions[activeIndex] - lineTop;
+      // Next marker position (or end of line)
+      const nextMarkerRel = markerPositions[activeIndex + 1]
+        ? markerPositions[activeIndex + 1] - lineTop
+        : lineHeight;
+
+      // How far through current step
+      const activeStepRect = steps[activeIndex].getBoundingClientRect();
+      const stepHeight = steps[activeIndex].offsetHeight;
+      const stepProgress = Math.max(0, Math.min(1,
+        (triggerPoint - activeStepRect.top) / stepHeight
+      ));
+
+      // Interpolate between current marker and next marker
+      const fillPx = activeMarkerRel + (nextMarkerRel - activeMarkerRel) * stepProgress;
+      const fillScale = Math.max(0, Math.min(1, fillPx / lineHeight));
+      milestoneProgress.style.transform = `scaleY(${fillScale})`;
+    }
+
+    // Activate markers up to and including the active step
+    markers.forEach((marker, i) => {
+      marker.classList.toggle('is-active', i <= activeIndex);
+    });
+  }
+
+  // Listen on both native scroll and Lenis for reliability
+  window.addEventListener('scroll', updateMilestone, { passive: true });
+  lenis.on('scroll', updateMilestone);
+  // Initial call
+  updateMilestone();
 }
 
 initMilestone();
